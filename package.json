@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "hellosign-sdk": "github:HelloFax/hellosign-nodejs-sdk#openapi"
+  }
+}
