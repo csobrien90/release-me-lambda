@@ -22,14 +22,6 @@ const request = {
 - retrieves a summary of all a user's media releases
 - no params required
 
-### Get Release Data (action: getRelease)
-
-- retrieves all information for a single release
-- params:
-
-```
-{"releaseId": {(string) 16-digit alphabetic ID} //required}
-```
 
 ### Create/Update Release Data (action: saveRelease)
 
@@ -84,3 +76,12 @@ const request = {
 	]}
 }
 ```
+
+## Next steps and areas for improvement
+
+*Since the Release Me Media Release Manager is being created first and foremost for the HelloSign Hackathon and there is an impending hard deadline, this will serve, more than anything, as a proof of concept. Below is a sort of To Do list for future development on this application.*
+
+- Define response data structures in this documentation
+- Flesh out authentication process
+- Implement unit testing
+- Improve error handling with try/catch wrapper function

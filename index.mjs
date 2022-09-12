@@ -18,9 +18,12 @@ export const handler = async (event) => {
 	const auth = postData.auth;
 	const action = postData.action;
 	const body = postData.params;
+
+	const validationError = {
+		statusCode: 400,
+		body: "Unable to process request due to invalid data"
+	}
 	
-
-
 
 	/*
 	=========================
@@ -49,31 +52,20 @@ export const handler = async (event) => {
 	
 	if (action === 'getAllReleases') {
 
-		// Validate and santize input
-		// Retrieve summary of all releases from DB
+		// Call HelloSign to update all releases' signature status
+
+
+		// Retrieve all release data from DB
+		var params = {
+			Key: {"userId": userId},
+			TableName: tableName,
+			AttributesToGet: ["releases"],
+		}
+		
+		const result = await database.get(params).promise();
 
 		response.statusCode = 200;
-		response.body = 'Here is a summary of all the releases!';
-		return response;
-	}
-
-
-	/*
-	=========================
-	Get Single Release
-	=========================
-	*/
-
-	if (action === 'getRelease') {
-
-		// Validate and santize input
-		let releaseId = body.releaseId;
-
-		// Call HelloSign to update release signature status in DB
-		// Return updated release data
-
-		response.statusCode = 200;
-		response.body = 'Here is all data for this single release!';
+		response.body = JSON.stringify(result).Item;
 		return response;
 	}
 
