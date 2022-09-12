@@ -25,12 +25,12 @@ const request = {
 
 ### Create/Update Release Data (action: saveRelease)
 
-- saves newly created or updates existing release 
+- saves newly created or updates existing release
 - params:
 
 ```
 {
-	"releaseId": {(string) 16-digit alphabetic ID}, //required
+	"releaseId": {(string) 24-digit alphabetic ID},
 	"title": {(string) title},
 	"description": {(string) description},
 	"senderInfo": {
@@ -52,7 +52,7 @@ const request = {
 - params:
 
 ```
-{"releaseId": {(string) 16-digit alphabetic ID} //required}
+{"releaseId": {(string) 24-digit alphabetic ID} //required}
 ```
 
 
@@ -63,7 +63,7 @@ const request = {
 
 ```
 {
-	"releaseId": {(string) 16-digit alphabetic ID}, //required
+	"releaseId": {(string) 24-digit alphabetic ID}, //required
 	"templateIds": {},
 	"subject": {(string) subject},
 	"message": {(string) message},

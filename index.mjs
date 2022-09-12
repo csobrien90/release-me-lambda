@@ -5,23 +5,69 @@ export const handler = async (event) => {
 	
 	/*
 	=========================
-	Declare shared resources
+	Shared resources
 	=========================
 	*/
 	
 	const response = {};
+	const validationError = {
+		statusCode: 400,
+		body: "Unable to process request due to invalid data"
+	}
 
 	let database = new AWS.DynamoDB.DocumentClient();
 	const tableName = process.env.tableName;
 
-	const postData = JSON.parse(event.body);
-	const auth = postData.auth;
-	const action = postData.action;
-	const body = postData.params;
+	// Functions
+	function validateParam(param, type) {
 
-	const validationError = {
-		statusCode: 400,
-		body: "Unable to process request due to invalid data"
+		let isValid = false;
+		switch (type) {
+			case 'releaseId':
+				let regex = /^[a-zA-Z]{24}$/;
+				isValid = regex.test(param);
+				break;
+			default:
+				return null;
+		}
+
+		return isValid ? param : null;
+
+	}
+
+	// Validate request format
+	let postData;
+	try {
+		postData = JSON.parse(event.body);
+	} catch (err) {
+		console.error(err);
+		validationError.body += ' - request must be in JSON format';
+		return validationError;
+	}
+
+	let auth, action, body;
+	
+	if (postData.hasOwnProperty('auth')) {
+		auth = postData.auth;
+	} else {
+		validationError.body += ' - missing auth attribute';
+		return validationError;
+	}
+
+	if (postData.hasOwnProperty('action')) {
+		action = postData.action;
+	} else {
+		validationError.body += ' - missing action attribute';
+		return validationError;
+	}
+
+	if (postData.hasOwnProperty('params')) {
+		body = postData.params;
+	} else if (action === 'getAllReleases') {
+		body = null;
+	} else {
+		validationError.body += ' - missing required params attribute';
+		return validationError;
 	}
 	
 
@@ -30,7 +76,7 @@ export const handler = async (event) => {
 	Authentication
 	=========================
 	*/
-
+	
 	// Verify reCaptcha
 	// Sanitize and validate web token
 
@@ -65,7 +111,7 @@ export const handler = async (event) => {
 		const result = await database.get(params).promise();
 
 		response.statusCode = 200;
-		response.body = JSON.stringify(result).Item;
+		response.body = JSON.stringify(result);
 		return response;
 	}
 
@@ -76,22 +122,48 @@ export const handler = async (event) => {
 	=========================
 	*/
 
+	// {
+	// 	"releaseId": {(string) 24-digit alphabetic ID},
+	// 	"title": {(string) title},
+	// 	"description": {(string) description},
+	// 	"senderInfo": {
+	// 		emailAddress: {(string) email},
+	// 		name: {(string) companyName}
+	// 	},
+	// 	"requestedSignatures": {(array) [
+	// 		{
+	// 			HelloSign Request
+	// 		},
+	// 		{...}
+	// 	]}
+	// }
+
+
 	if (action === 'saveRelease') {
 
-		// Validate and santize input
-		let releaseId = body.releaseId;
-		
+		// Validate and santize or create releaseId
+		let releaseId;
+		if (body.hasOwnProperty('releaseId')) { // Updating an existing release 
+			releaseId = validateParam(body.releaseId, 'releaseId');
+			delete body.releaseId;
+		} else { // Creating new release
+			// Generate 24-digit alphabetic code for new releaseId
+			releaseId = '';
+			var charset = "abcdefghijklmnopqrstuvwxyz";
+			for (var i=0; i < 24; i++) releaseId += charset.charAt(Math.floor(Math.random() * charset.length));
+		}
+
+		// TODO: Validate other params
+
+
+		// BUG: This update operation overwrites values that are not included - need to either get the item and alter before saving, or find a way to only alter included props
+
 		// Update DB
 		const params = {
 			TableName: tableName,
 			Key: {"userId": userId},
 			UpdateExpression: `SET releases.${releaseId} = :releaseData`,
-			ExpressionAttributeValues: {
-				":releaseData": {
-					"testKey1": "testValue1",
-					"testKey2": "testValue2"
-				}
-			}
+			ExpressionAttributeValues: {":releaseData": body}
 		};
 
 		const result = await database.update(params).promise();
