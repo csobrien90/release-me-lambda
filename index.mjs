@@ -197,7 +197,6 @@ export const handler = async (event) => {
 			console.log('request:', signatureRequestResponse);
 			
 			// Save request in DB
-			let databases = new AWS.DynamoDB.DocumentClient();
 	
 			
 			// Prepare response
