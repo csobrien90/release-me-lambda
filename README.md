@@ -22,7 +22,7 @@ const request = {
 - retrieves a summary of all a user's media releases
 - no params required
 
-### /getRelease
+### Get Release Data (action: getRelease)
 
 - retrieves all information for a single release
 - params:
@@ -31,7 +31,7 @@ const request = {
 {"releaseId": {(string) 16-digit alphabetic ID} //required}
 ```
 
-### /saveRelease
+### Create/Update Release Data (action: saveRelease)
 
 - saves newly created or updates existing release 
 - params:
@@ -54,7 +54,7 @@ const request = {
 }
 ```
 
-### /deleteRelease
+### Delete Release Data (action: deleteRelease)
 
 - delete all data for a single release
 - params:
@@ -64,7 +64,7 @@ const request = {
 ```
 
 
-### /signatureRequest
+### Create Signature Request (action: signatureRequest)
 
 - invoke HelloSign SDK to create a new signature request
 - params:
