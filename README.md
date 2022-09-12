@@ -12,7 +12,6 @@ const request = {
 	"auth": {
 		"userId": {(int) userId},
 		"token": {(string) JWT},
-		"reCaptcha": 
 	},
 	"params": {(object) params}
 }
