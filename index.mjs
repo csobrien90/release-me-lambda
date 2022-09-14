@@ -26,23 +26,28 @@ export const handler = async (event) => {
 
 		switch (type) {
 			case 'releaseId':
+				//  24 alphabetic digits
 				regex = /^[a-zA-Z]{24}$/;
 				isValid = regex.test(param);
 				break;
 			case 'title':
-				// regex = /^[a-zA-Z]{24}$/;
-				// isValid = regex.test(param);
-				isValid = true;
-				break;
 			case 'description':
-				// regex = /^[a-zA-Z]{24}$/;
-				// isValid = regex.test(param);
-				isValid = true;
+			case 'name':
+				// any number and combination of alphanumeric characters, special characters, and spaces
+				regex = /^[a-zA-Z0-9.,\/'";:\]}!@#$%^&*()_\-+= ]{1,}$/;
+				isValid = regex.test(param);
+				break;
+			case 'email':
+				//  a valid email
+				regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,4}$/;
+				isValid = regex.test(param);
 				break;
 			case 'senderInfo':
-				// regex = /^[a-zA-Z]{24}$/;
-				// isValid = regex.test(param);
-				isValid = true;
+				let isObject = typeof param === 'object';
+				let hasTwoProps = Object.keys(param).length === 2;
+				let hasValidEmail = param.hasOwnProperty('emailAddress') && validateParam(param.emailAddress, 'email');
+				let hasValidName = param.hasOwnProperty('name') && validateParam(param.name, 'name');
+				isValid = isObject && hasTwoProps && hasValidEmail && hasValidName;
 				break;
 			default:
 				return null;
@@ -183,6 +188,10 @@ export const handler = async (event) => {
 		}
 
 		const updateExpression = updateExpressionDraft.slice(0, -1);
+		if (updateExpression.length < 4) {
+			validationError.body += ' - update request cannot be empty';
+			return validationError;
+		}
 
 		// Update DB
 		const params = {
