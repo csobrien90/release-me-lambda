@@ -22,10 +22,27 @@ export const handler = async (event) => {
 	function validateParam(param, type) {
 
 		let isValid = false;
+		let regex;
+
 		switch (type) {
 			case 'releaseId':
-				let regex = /^[a-zA-Z]{24}$/;
+				regex = /^[a-zA-Z]{24}$/;
 				isValid = regex.test(param);
+				break;
+			case 'title':
+				// regex = /^[a-zA-Z]{24}$/;
+				// isValid = regex.test(param);
+				isValid = true;
+				break;
+			case 'description':
+				// regex = /^[a-zA-Z]{24}$/;
+				// isValid = regex.test(param);
+				isValid = true;
+				break;
+			case 'senderInfo':
+				// regex = /^[a-zA-Z]{24}$/;
+				// isValid = regex.test(param);
+				isValid = true;
 				break;
 			default:
 				return null;
@@ -122,23 +139,6 @@ export const handler = async (event) => {
 	=========================
 	*/
 
-	// {
-	// 	"releaseId": {(string) 24-digit alphabetic ID},
-	// 	"title": {(string) title},
-	// 	"description": {(string) description},
-	// 	"senderInfo": {
-	// 		emailAddress: {(string) email},
-	// 		name: {(string) companyName}
-	// 	},
-	// 	"requestedSignatures": {(array) [
-	// 		{
-	// 			HelloSign Request
-	// 		},
-	// 		{...}
-	// 	]}
-	// }
-
-
 	if (action === 'saveRelease') {
 
 		// Validate and santize or create releaseId
@@ -153,17 +153,43 @@ export const handler = async (event) => {
 			for (var i=0; i < 24; i++) releaseId += charset.charAt(Math.floor(Math.random() * charset.length));
 		}
 
-		// TODO: Validate other params
+		// Validate other params and determine what needs saving
+		let releaseData = {};
+		let updateExpressionDraft = 'SET';
+		let path = `releases.${releaseId}`;
 
+		if (body.hasOwnProperty('title')) { 
+			let title = validateParam(body.title, 'title');
+			if (title) {
+				releaseData[':title'] = title;
+				updateExpressionDraft += ` ${path}.title = :title,`;
+			}
+		}
 
-		// BUG: This update operation overwrites values that are not included - need to either get the item and alter before saving, or find a way to only alter included props
+		if (body.hasOwnProperty('description')) { 
+			let description = validateParam(body.description, 'description');
+			if (description) {
+				releaseData[':description'] = description;
+				updateExpressionDraft += ` ${path}.description = :description,`;
+			}
+		}
+
+		if (body.hasOwnProperty('senderInfo')) { 
+			let senderInfo = validateParam(body.senderInfo, 'senderInfo');
+			if (senderInfo) {
+				releaseData[':senderInfo'] = senderInfo;
+				updateExpressionDraft += ` ${path}.senderInfo = :senderInfo,`;
+			}
+		}
+
+		const updateExpression = updateExpressionDraft.slice(0, -1);
 
 		// Update DB
 		const params = {
 			TableName: tableName,
 			Key: {"userId": userId},
-			UpdateExpression: `SET releases.${releaseId} = :releaseData`,
-			ExpressionAttributeValues: {":releaseData": body}
+			UpdateExpression: updateExpression,
+			ExpressionAttributeValues: releaseData
 		};
 
 		const result = await database.update(params).promise();
