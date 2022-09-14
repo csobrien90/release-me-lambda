@@ -9,8 +9,15 @@ export const handler = async (event) => {
 	=========================
 	*/
 	
-	const response = {};
+	const response = {
+		headers: {
+            "Access-Control-Allow-Headers" : "Content-Type",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "OPTIONS,POST"
+        }
+	};
 	const validationError = {
+		headers: response.headers,
 		statusCode: 400,
 		body: "Unable to process request due to invalid data"
 	}
