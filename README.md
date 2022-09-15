@@ -81,6 +81,7 @@ const request = {
 
 *Since the Release Me Media Release Manager is being created first and foremost for the HelloSign Hackathon and there is an impending hard deadline, this will serve, more than anything, as a proof of concept. Below is a sort of To Do list for future development on this application.*
 
+- add time created/modified data to db changes
 - Define response data structures in this documentation
 - Flesh out authentication process
 - Implement unit testing
