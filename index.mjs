@@ -163,6 +163,21 @@ export const handler = async (event) => {
 			releaseId = '';
 			var charset = "abcdefghijklmnopqrstuvwxyz";
 			for (var i=0; i < 24; i++) releaseId += charset.charAt(Math.floor(Math.random() * charset.length));
+
+			let createReleaseParams = {
+				TableName: tableName,
+				Key: {"userId": userId},
+				UpdateExpression: `SET releases.${releaseId} = :object`,
+				ExpressionAttributeValues: {":object": {}}
+			};
+	
+			let createRelease = await database.update(createReleaseParams).promise();
+			if (!createRelease) {
+				response.statusCode = 500;
+				response.body = "Release could not be created.";
+				return response;
+			};
+
 		}
 
 		// Validate other params and determine what needs saving
