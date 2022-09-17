@@ -126,18 +126,51 @@ export const handler = async (event) => {
 	*/
 	
 	if (action === 'getAllReleases') {
-
-		// Call HelloSign to update all releases' signature status
-
+		console.log('===starting getAllReleases===');
 
 		// Retrieve all release data from DB
-		var params = {
+		const params = {
 			Key: {"userId": userId},
 			TableName: tableName,
 			AttributesToGet: ["releases"],
 		}
 		
 		const result = await database.get(params).promise();
+		const releases = result.Item.releases;
+
+		// Call HelloSign to update all releases' signature status
+		const api = new HelloSignSDK.SignatureRequestApi();
+		api.username = process.env.apiKey;
+
+		let releaseIds = Object.keys(releases);
+		for (let releaseId of releaseIds) {
+			for (let request of releases[releaseId].requestedSignatures) {
+				let helloSignResult;
+				try {
+					helloSignResult = await api.signatureRequestGet(request.signatureRequestId);
+					console.log("helloSignResult for ", request.signatureRequestId, ": ", helloSignResult);
+					request = helloSignResult.body.signatureRequest;
+				} catch (error) {
+					console.log('An error occured during the hellosign update request');
+					console.error(error);
+				};
+			}
+		}
+		
+		// // Save updated signature data in DB
+		const databaseParams = {
+			TableName: tableName,
+			Key: {"userId": userId},
+			UpdateExpression: `SET releases = :fullReleaseData`,
+			ExpressionAttributeValues: {
+				":fullReleaseData": releases
+			}
+		};
+
+		const updateResult = await database.update(databaseParams).promise();
+
+		console.log("new releases: ", releases);
+		result.Item.releases = releases;		
 
 		response.statusCode = 200;
 		response.body = JSON.stringify(result);
@@ -152,6 +185,7 @@ export const handler = async (event) => {
 	*/
 
 	if (action === 'saveRelease') {
+		console.log('===starting saveRelease===');
 
 		// Validate and santize or create releaseId
 		let releaseId;
@@ -246,7 +280,8 @@ export const handler = async (event) => {
 	*/
 
 	if (action === 'deleteRelease') {
-		
+		console.log('===starting deleteRelease===');
+
 		// Validate and santize input		
 		let releaseId = body.releaseId;
 
@@ -274,7 +309,8 @@ export const handler = async (event) => {
 	*/
 
 	if (action === 'signatureRequest') {
-		
+		console.log('===starting signatureRequest===');
+
 		// Validate and santize input		
 		let releaseId = body.releaseId;
 		const subject = body.subject;
@@ -330,12 +366,8 @@ export const handler = async (event) => {
 					":signatureRequest": [signatureRequestResponse]
 				}
 			};
-
-			console.log('params:', params);
 	
 			const updateResult = await database.update(params).promise();
-			
-			console.log('updateResult: ', updateResult)
 
 			// Prepare response
 			response.statusCode = 200;
