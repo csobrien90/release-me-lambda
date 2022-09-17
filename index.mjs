@@ -144,17 +144,19 @@ export const handler = async (event) => {
 
 		let releaseIds = Object.keys(releases);
 		for (let releaseId of releaseIds) {
+			let requestedSignatures = [];
 			for (let request of releases[releaseId].requestedSignatures) {
 				let helloSignResult;
 				try {
 					helloSignResult = await api.signatureRequestGet(request.signatureRequestId);
 					console.log("helloSignResult for ", request.signatureRequestId, ": ", helloSignResult);
-					request = helloSignResult.body.signatureRequest;
+					requestedSignatures.push(helloSignResult.body.signatureRequest);
 				} catch (error) {
 					console.log('An error occured during the hellosign update request');
 					console.error(error);
 				};
 			}
+			releases[releaseId].requestedSignatures = requestedSignatures;
 		}
 		
 		// // Save updated signature data in DB
@@ -169,7 +171,8 @@ export const handler = async (event) => {
 
 		const updateResult = await database.update(databaseParams).promise();
 
-		console.log("new releases: ", releases);
+		console.log("old releases: ", JSON.stringify(result.Item.releases));
+		console.log("new releases: ", JSON.stringify(releases));
 		result.Item.releases = releases;		
 
 		response.statusCode = 200;
