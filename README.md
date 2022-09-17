@@ -67,13 +67,17 @@ const request = {
 	"templateIds": {},
 	"subject": {(string) subject},
 	"message": {(string) message},
-	"signers": {(array) [
+	"senderInfo": {
+		emailAddress: {(string) email},
+		name: {(string) companyName}
+	}
+	"signerInfo": {(array) [
 		{
 			emailAddress: {(string) email},
 			name: {(string) companyName}
 		},
 		{...}
-	]}
+	]},
 }
 ```
 

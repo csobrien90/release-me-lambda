@@ -155,6 +155,9 @@ export const handler = async (event) => {
 
 		// Validate and santize or create releaseId
 		let releaseId;
+		let releaseData = {};
+		let updateExpressionDraft = 'SET';
+
 		if (body.hasOwnProperty('releaseId')) { // Updating an existing release 
 			releaseId = validateParam(body.releaseId, 'releaseId');
 			delete body.releaseId;
@@ -168,7 +171,7 @@ export const handler = async (event) => {
 				TableName: tableName,
 				Key: {"userId": userId},
 				UpdateExpression: `SET releases.${releaseId} = :object`,
-				ExpressionAttributeValues: {":object": {}}
+				ExpressionAttributeValues: {":object": {"requestedSignatures": []}}
 			};
 	
 			let createRelease = await database.update(createReleaseParams).promise();
@@ -178,13 +181,16 @@ export const handler = async (event) => {
 				return response;
 			};
 
+			releaseData[':created'] = Date.now();
+			updateExpressionDraft += ` releases.${releaseId}.created = :created,`;
+			
 		}
+		
+		let path = `releases.${releaseId}`;
+		releaseData[':modified'] = Date.now();
+		updateExpressionDraft += ` ${path}.modified = :modified,`;
 
 		// Validate other params and determine what needs saving
-		let releaseData = {};
-		let updateExpressionDraft = 'SET';
-		let path = `releases.${releaseId}`;
-
 		if (body.hasOwnProperty('title')) { 
 			let title = validateParam(body.title, 'title');
 			if (title) {
@@ -269,24 +275,17 @@ export const handler = async (event) => {
 
 	if (action === 'signatureRequest') {
 		
-		// Validate and santize input
-	
-		// Send signature request
-		const api = new HelloSignSDK.SignatureRequestApi();
-		api.username = process.env.apiKey;
-		
-		const signer = {
-			role: "Subject",
-			emailAddress: "obrien.music@gmail.com",
-			name: "Chad O'Brien",
-		};
-	
-		const sender = {
-			role: "Sender",
-			emailAddress: "louisvillejazzinitiative@gmail.com",
-			name: "Louisville Jazz Initiaitve",
-		}
-	
+		// Validate and santize input		
+		let releaseId = body.releaseId;
+		const subject = body.subject;
+		const message = body.message;
+		const signers = body.signerInfo;
+		const sender = body.senderInfo;
+
+		// Construct call parameters {role, emailAddress, name}
+		signers.forEach(signer => signer.role = "Subject");
+		sender.role = "Sender";
+
 		const customField1 = {
 			name: "CompanyName",
 			value: sender.name,
@@ -304,22 +303,40 @@ export const handler = async (event) => {
 	
 		const data = {
 			templateIds: ["105f1b83b3ab749ef39462a53c15290f8ba2af3a"],
-			subject: "Media Release Form",
-			message: "Please review and sign this media release form. Thank you!",
-			signers: [ signer, sender ],
+			subject,
+			message,
+			signers: [ ...signers, sender ],
 			customFields: [ customField1 ],
 			signingOptions,
 			testMode: true,
 		};
+
+		// Send signature request
+		const api = new HelloSignSDK.SignatureRequestApi();
+		api.username = process.env.apiKey;
 	
 		const result = await api.signatureRequestSendWithTemplate(data)
-		.then((res) => {
+		.then(async (res) => {
 			const signatureRequestResponse = res.body.signatureRequest;
 			console.log('request:', signatureRequestResponse);
 			
 			// Save request in DB
+			let requestedSignaturesArray = `releases.${releaseId}.requestedSignatures`;
+			const params = {
+				TableName: tableName,
+				Key: {"userId": userId},
+				UpdateExpression: `SET ${requestedSignaturesArray} = list_append(${requestedSignaturesArray}, :signatureRequest)`,
+				ExpressionAttributeValues: {
+					":signatureRequest": [signatureRequestResponse]
+				}
+			};
+
+			console.log('params:', params);
 	
+			const updateResult = await database.update(params).promise();
 			
+			console.log('updateResult: ', updateResult)
+
 			// Prepare response
 			response.statusCode = 200;
 			response.body = JSON.stringify(signatureRequestResponse);
@@ -335,7 +352,7 @@ export const handler = async (event) => {
 	}
 
 	return {
-		statusCode: 500,
+		statusCode: 403,
 		body: 'Unable to route request due to invalid action.'
 	};
 
