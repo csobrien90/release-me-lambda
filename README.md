@@ -70,14 +70,14 @@ const request = {
 	"senderInfo": {
 		emailAddress: {(string) email},
 		name: {(string) companyName}
-	}
+	},
 	"signerInfo": {(array) [
 		{
 			emailAddress: {(string) email},
 			name: {(string) companyName}
 		},
 		{...}
-	]},
+	]}
 }
 ```
 

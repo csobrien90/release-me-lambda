@@ -170,9 +170,6 @@ export const handler = async (event) => {
 		};
 
 		const updateResult = await database.update(databaseParams).promise();
-
-		console.log("old releases: ", JSON.stringify(result.Item.releases));
-		console.log("new releases: ", JSON.stringify(releases));
 		result.Item.releases = releases;		
 
 		response.statusCode = 200;
@@ -288,6 +285,8 @@ export const handler = async (event) => {
 		// Validate and santize input		
 		let releaseId = body.releaseId;
 
+		// Call Hellosign to delete request(s)
+
 		// Update DB
 		const params = {
 			TableName: tableName,
@@ -344,7 +343,6 @@ export const handler = async (event) => {
 			templateIds: ["105f1b83b3ab749ef39462a53c15290f8ba2af3a"],
 			subject,
 			message,
-			signers: [ ...signers, sender ],
 			customFields: [ customField1 ],
 			signingOptions,
 			testMode: true,
@@ -354,36 +352,44 @@ export const handler = async (event) => {
 		const api = new HelloSignSDK.SignatureRequestApi();
 		api.username = process.env.apiKey;
 	
-		const result = await api.signatureRequestSendWithTemplate(data)
-		.then(async (res) => {
-			const signatureRequestResponse = res.body.signatureRequest;
-			console.log('request:', signatureRequestResponse);
-			
-			// Save request in DB
-			let requestedSignaturesArray = `releases.${releaseId}.requestedSignatures`;
-			const params = {
-				TableName: tableName,
-				Key: {"userId": userId},
-				UpdateExpression: `SET ${requestedSignaturesArray} = list_append(${requestedSignaturesArray}, :signatureRequest)`,
-				ExpressionAttributeValues: {
-					":signatureRequest": [signatureRequestResponse]
-				}
-			};
-	
-			const updateResult = await database.update(params).promise();
-
-			// Prepare response
-			response.statusCode = 200;
-			response.body = JSON.stringify(signatureRequestResponse);
-			
-		})
-		.catch((err) => {
-			console.error(err);
-			response.statusCode = 500;
-			response.body = 'Unable to complete signature request - something went wrong.'
-		});
+		let isSuccess = true
+		for (let signer of signers) {
+			data.signers = [signer, sender];
+			const result = await api.signatureRequestSendWithTemplate(data)
+			.then(async (res) => {
+				const signatureRequestResponse = res.body.signatureRequest;
+				console.log('request:', signatureRequestResponse);
+				
+				// Save request in DB
+				let requestedSignaturesArray = `releases.${releaseId}.requestedSignatures`;
+				const params = {
+					TableName: tableName,
+					Key: {"userId": userId},
+					UpdateExpression: `SET ${requestedSignaturesArray} = list_append(${requestedSignaturesArray}, :signatureRequest)`,
+					ExpressionAttributeValues: {
+						":signatureRequest": [signatureRequestResponse]
+					}
+				};
+		
+				const updateResult = await database.update(params).promise();
+				isSuccess = isSuccess && true;
+			})
+			.catch((err) => {
+				console.error(err);
+				isSuccess = false;
+			});
+		}
 	
 		return response;
+	}
+
+	// Prepare response;
+	if (isSuccess) {
+		response.statusCode = 200;
+		response.body = 'All requests have been made!'
+	} else {
+		response.statusCode = 500;
+		response.body = 'Unable to complete signature request - something went wrong.'
 	}
 
 	return {
