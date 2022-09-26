@@ -426,18 +426,56 @@ export const handler = async (event) => {
 				isSuccess = false;
 			});
 		}
-	
+
+		// Prepare response;
+		if (isSuccess) {
+			response.statusCode = 200;
+			response.body = 'All requests have been made!'
+		} else {
+			response.statusCode = 500;
+			response.body = 'Unable to complete some/all signature requests - something went wrong.'
+		}
+
 		return response;
 	}
 
-	// Prepare response;
-	if (isSuccess) {
+	
+	/*
+	=========================
+	Send Reminder Email
+	=========================
+	*/
+
+	if (action === 'sendReminder') {
+		console.log('===starting sendReminder===');
+
+		// Validate and santize input	
+		const email = {emailAddress: body.emailAddress};	
+		const signatureRequestId = body.requestId;
+		
+		// Send signature request
+		const api = new HelloSignSDK.SignatureRequestApi();
+		api.username = process.env.apiKey;
+		
+		// Call Hellosign to send reminder
+		let result;
+		try {
+			result = await api.signatureRequestRemind(signatureRequestId, email);
+		} catch (error) {
+			console.error(error);
+			return {
+				statusCode: 500,
+				body: 'Exception when calling HelloSign API'
+			}
+		}
+		
+		console.log('result:', result);
 		response.statusCode = 200;
-		response.body = 'All requests have been made!'
-	} else {
-		response.statusCode = 500;
-		response.body = 'Unable to complete signature request - something went wrong.'
+		response.body = 'Reminder sent!';
+
+		return response;
 	}
+	
 
 	return {
 		statusCode: 403,
