@@ -475,8 +475,45 @@ export const handler = async (event) => {
 
 		return response;
 	}
+
+
+	/*
+	=========================
+	Get Signature File
+	=========================
+	*/
+
+	if (action === 'getSignatureFile') {
+		console.log('===starting getSignatureFile===');
+
+		// Validate and santize input	
+		const signatureRequestId = body.requestId;
+		
+		// Send signature request
+		const api = new HelloSignSDK.SignatureRequestApi();
+		api.username = process.env.apiKey;
+		
+		// Call Hellosign to send reminder
+		let result;
+		try {
+			result = await api.signatureRequestFiles(signatureRequestId, 'pdf', true);
+		} catch (error) {
+			console.error(error);
+			return {
+				statusCode: 500,
+				body: 'Exception when calling HelloSign API'
+			}
+		}
+		
+		console.log('result:', result);
+		response.statusCode = 200;
+		response.body = JSON.stringify({fileUrl: result.body.fileUrl});
+
+		return response;
+	}
 	
 
+	// Return 403 error if invalid action
 	return {
 		statusCode: 403,
 		body: 'Unable to route request due to invalid action.'
