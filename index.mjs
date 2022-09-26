@@ -152,14 +152,18 @@ export const handler = async (event) => {
 					console.log("helloSignResult for ", request.signatureRequestId, ": ", helloSignResult);
 					requestedSignatures.push(helloSignResult.body.signatureRequest);
 				} catch (error) {
-					console.log('An error occured during the hellosign update request');
-					console.error(error);
+					if (error.statusCode && error.statusCode === 410) {
+						console.log(`Request ${request.signatureRequestId} no longer exists!`);
+					} else {
+						console.log('An error occured during the hellosign update request');
+						console.error(error);
+					}
 				};
 			}
 			releases[releaseId].requestedSignatures = requestedSignatures;
 		}
 		
-		// // Save updated signature data in DB
+		// Save updated signature data in DB
 		const databaseParams = {
 			TableName: tableName,
 			Key: {"userId": userId},
@@ -169,7 +173,13 @@ export const handler = async (event) => {
 			}
 		};
 
-		const updateResult = await database.update(databaseParams).promise();
+		try {
+			const updateResult = await database.update(databaseParams).promise();
+		} catch (error) {
+			console.log('DB update failed!');
+			console.error(error);
+		}
+
 		result.Item.releases = releases;		
 
 		response.statusCode = 200;
@@ -300,6 +310,43 @@ export const handler = async (event) => {
 
 		response.statusCode = 200;
 		response.body = 'Release data deleted!';
+		return response;
+	}
+
+
+	/*
+	=========================
+	Delete Request
+	=========================
+	*/
+
+	if (action === 'deleteRequest') {
+		console.log('===starting deleteRequest===');
+
+		// Validate and santize input	
+		const releaseId = body.releaseId;	
+		const signatureRequestId = body.requestId;
+		
+		// Send signature request
+		const api = new HelloSignSDK.SignatureRequestApi();
+		api.username = process.env.apiKey;
+		
+		// Call Hellosign to delete request
+		let result;
+		try {
+			result = await api.signatureRequestCancel(signatureRequestId)
+		} catch (error) {
+			console.error(error);
+			return {
+				statusCode: 500,
+				body: 'Exception when calling HelloSign API'
+			}
+		}
+		
+		console.log('result:', result);
+		response.statusCode = 200;
+		response.body = 'Request deleted!';
+
 		return response;
 	}
 
