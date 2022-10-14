@@ -1,3 +1,4 @@
+import './env.mjs';
 import * as HelloSignSDK from "hellosign-sdk";
 import AWS from "aws-sdk";
 

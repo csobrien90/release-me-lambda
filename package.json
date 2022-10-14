@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "aws-sdk": "^2.1213.0",
+    "dotenv": "^16.0.3",
     "hellosign-sdk": "github:HelloFax/hellosign-nodejs-sdk#openapi"
   }
 }
