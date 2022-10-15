@@ -17,6 +17,18 @@ const request = {
 }
 ```
 
+### Create Account (action: createAccount)
+
+- saves new user if email does not already have an account
+- params:
+
+```
+{
+	"email": {(string) email},
+	"password": {(string) password},
+}
+```
+
 ### Get All Releases (action: getAllReleases)
 
 - retrieves a summary of all a user's media releases

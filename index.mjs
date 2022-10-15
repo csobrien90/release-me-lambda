@@ -1,9 +1,12 @@
 import './env.mjs';
 import * as HelloSignSDK from "hellosign-sdk";
 import AWS from "aws-sdk";
+import bcryptjs from 'bcryptjs';
+const { genSalt, hash } = bcryptjs;
 
 export const handler = async (event) => {
-	
+	try {
+
 	/*
 	=========================
 	Shared resources
@@ -12,10 +15,10 @@ export const handler = async (event) => {
 	
 	const response = {
 		headers: {
-            "Access-Control-Allow-Headers" : "Content-Type",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "OPTIONS,POST"
-        }
+			"Access-Control-Allow-Headers" : "Content-Type",
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "OPTIONS,POST"
+		}
 	};
 	const validationError = {
 		headers: response.headers,
@@ -33,6 +36,7 @@ export const handler = async (event) => {
 		let regex;
 
 		switch (type) {
+			case 'userId':
 			case 'releaseId':
 				//  24 alphabetic digits
 				regex = /^[a-zA-Z]{24}$/;
@@ -65,22 +69,21 @@ export const handler = async (event) => {
 
 	}
 
+
+	/*
+	=========================
+	Initial validation and verification
+	=========================
+	*/
+	
 	// Validate request format
-	let postData;
+	let postData, action, body;
+
 	try {
 		postData = JSON.parse(event.body);
 	} catch (err) {
 		console.error(err);
 		validationError.body += ' - request must be in JSON format';
-		return validationError;
-	}
-
-	let auth, action, body;
-	
-	if (postData.hasOwnProperty('auth')) {
-		auth = postData.auth;
-	} else {
-		validationError.body += ' - missing auth attribute';
 		return validationError;
 	}
 
@@ -101,15 +104,125 @@ export const handler = async (event) => {
 	}
 	
 
+	// Verify reCaptcha
+
+
+
+	
+	/*
+	=========================
+	Account Actions
+	=========================
+	*/
+	
+	if (action === 'createAccount') {
+		console.log('===starting createAccount===');
+
+		// Validate and santize input		
+		const email = body.email;
+		const password = body.password;
+
+		// Return error if email already exists in DB
+		const isAlreadyRegisteredParams = {
+			Key: {"username": email},
+			TableName: tableName,
+			IndexName: 'email-index',
+			KeyConditionExpression: 'email = :email', 
+			ExpressionAttributeValues: { ':email': email },
+		}
+
+		const isAlreadyRegistered = await database.query(isAlreadyRegisteredParams).promise();
+
+		if ( isAlreadyRegistered.Count !== 0 ) {
+			response.statusCode = 422;
+			response.body = 'Account creation failed - a user with that email already exists';
+			return response;
+		}
+		
+		// Generate salt and hash password
+		const salt = await genSalt(10);
+		const hashedPassword = await hash(password, salt);
+
+		// Create new userId
+		let newUserId = '';
+		let charset = "1234567890";
+		for (let i=0; i < 12; i++) newUserId += charset.charAt(Math.floor(Math.random() * charset.length));
+
+		// TODO: Make sure newUserId does not already exist
+
+		// Save new user in DB
+		const databaseParams = {
+			TableName: tableName,
+			Item: {
+				email,
+				'userId': +newUserId,
+				'auth': {
+					'password': hashedPassword,
+					'token': ''
+				},
+				'releases': {}
+			}
+		};
+
+		const registerResult = await database.put(databaseParams).promise();
+		console.log('registerResult', registerResult);
+
+		response.statusCode = 200;
+		response.body = 'Account created successfully!';
+		return response;
+	}
+
+	if (action === 'login') {
+		console.log('===starting login===');
+
+		// Validate and santize input		
+		const email = body.email;
+		const password = body.password;
+
+		// TODO: Compare passwords and return error if not a match
+
+		// const salt = await genSalt(10);
+		// const hashedPassword = await hash(password, salt);
+		
+		// TODO: Create JWT and save in DB
+		
+		// const databaseParams = {
+		// 	TableName: tableName,
+		// 	Key: {"userId": userId},
+		// 	UpdateExpression: `SET releases = :fullReleaseData`,
+		// 	ExpressionAttributeValues: {
+		// 		":fullReleaseData": releases
+		// 	}
+		// };
+
+		try {
+			const registerResult = await database.update(databaseParams).promise();
+		} catch (error) {
+			console.log('Account creation failed!');
+			console.error(error);
+		}
+
+		response.statusCode = 200;
+		response.body = 'Account created successfully!';
+		return response;
+	}
+
+
 	/*
 	=========================
 	Authentication
 	=========================
 	*/
-	
-	// Verify reCaptcha
-	// Sanitize and validate web token
 
+	let auth;
+	if (postData.hasOwnProperty('auth')) {
+		auth = postData.auth;
+	} else {
+		validationError.body += ' - missing auth attribute';
+		return validationError;
+	}
+
+	// Sanitize and validate web token
 	const userId = auth.userId;
 	let isAuthenticated = auth.token === 12345;
 
@@ -519,5 +632,9 @@ export const handler = async (event) => {
 		statusCode: 403,
 		body: 'Unable to route request due to invalid action.'
 	};
+
+} catch (e) {
+	console.error(e);
+}
 
 };
