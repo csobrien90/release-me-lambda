@@ -2,7 +2,7 @@ import './env.mjs';
 import * as HelloSignSDK from "hellosign-sdk";
 import AWS from "aws-sdk";
 import bcryptjs from 'bcryptjs';
-const { genSalt, hash } = bcryptjs;
+const { genSalt, hash, compare } = bcryptjs;
 
 export const handler = async (event) => {
 	try {
@@ -165,7 +165,6 @@ export const handler = async (event) => {
 		};
 
 		const registerResult = await database.put(databaseParams).promise();
-		console.log('registerResult', registerResult);
 
 		response.statusCode = 200;
 		response.body = 'Account created successfully!';
@@ -179,11 +178,37 @@ export const handler = async (event) => {
 		const email = body.email;
 		const password = body.password;
 
-		// TODO: Compare passwords and return error if not a match
+		// Get userData from DB
+		const userDataParams = {
+			Key: {"username": email},
+			TableName: tableName,
+			IndexName: 'email-index',
+			KeyConditionExpression: 'email = :email', 
+			ExpressionAttributeValues: { ':email': email },
+		}
 
-		// const salt = await genSalt(10);
-		// const hashedPassword = await hash(password, salt);
+		const userData = await database.query(userDataParams).promise();
+
+		if ( userData.Count === 0 ) {
+			response.statusCode = 400;
+			response.body = 'Login failed - no user with that email address';
+			return response;
+		} else if ( userData.Count > 1 ) {
+			response.statusCode = 400;
+			response.body = 'Login failed - multiple users found with that email address';
+			return response;
+		}
 		
+		// Compare passwords and return error if not a match
+		const savedPassword = userData.Items[0].auth.password;
+		const isAuthorized = await compare(password, savedPassword);
+
+		if (!isAuthorized) {
+			response.statusCode = 400;
+			response.body = 'Login failed - check you password and try again';
+			return response;
+		}
+
 		// TODO: Create JWT and save in DB
 		
 		// const databaseParams = {
@@ -195,15 +220,15 @@ export const handler = async (event) => {
 		// 	}
 		// };
 
-		try {
-			const registerResult = await database.update(databaseParams).promise();
-		} catch (error) {
-			console.log('Account creation failed!');
-			console.error(error);
-		}
+		// try {
+		// 	const registerResult = await database.update(databaseParams).promise();
+		// } catch (error) {
+		// 	console.log('Account creation failed!');
+		// 	console.error(error);
+		// }
 
 		response.statusCode = 200;
-		response.body = 'Account created successfully!';
+		response.body = 'Login successful!';
 		return response;
 	}
 
