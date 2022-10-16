@@ -3,6 +3,7 @@
     "aws-sdk": "^2.1213.0",
     "bcryptjs": "^2.4.3",
     "dotenv": "^16.0.3",
-    "hellosign-sdk": "github:HelloFax/hellosign-nodejs-sdk#openapi"
+    "hellosign-sdk": "github:HelloFax/hellosign-nodejs-sdk#openapi",
+    "jsonwebtoken": "^8.5.1"
   }
 }

@@ -1,6 +1,8 @@
 import './env.mjs';
 import * as HelloSignSDK from "hellosign-sdk";
 import AWS from "aws-sdk";
+
+import jwt from 'jsonwebtoken';
 import bcryptjs from 'bcryptjs';
 const { genSalt, hash, compare } = bcryptjs;
 
@@ -118,7 +120,7 @@ export const handler = async (event) => {
 	if (action === 'createAccount') {
 		console.log('===starting createAccount===');
 
-		// Validate and santize input		
+		// TODO: Validate and santize input		
 		const email = body.email;
 		const password = body.password;
 
@@ -154,12 +156,10 @@ export const handler = async (event) => {
 		const databaseParams = {
 			TableName: tableName,
 			Item: {
-				email,
 				'userId': +newUserId,
-				'auth': {
-					'password': hashedPassword,
-					'token': ''
-				},
+				email,
+				'password': hashedPassword,
+				'sessionId': '',
 				'releases': {}
 			}
 		};
@@ -174,7 +174,7 @@ export const handler = async (event) => {
 	if (action === 'login') {
 		console.log('===starting login===');
 
-		// Validate and santize input		
+		// TODO: Validate and santize input		
 		const email = body.email;
 		const password = body.password;
 
@@ -200,7 +200,7 @@ export const handler = async (event) => {
 		}
 		
 		// Compare passwords and return error if not a match
-		const savedPassword = userData.Items[0].auth.password;
+		const savedPassword = userData.Items[0].password;
 		const isAuthorized = await compare(password, savedPassword);
 
 		if (!isAuthorized) {
@@ -209,26 +209,39 @@ export const handler = async (event) => {
 			return response;
 		}
 
-		// TODO: Create JWT and save in DB
-		
-		// const databaseParams = {
-		// 	TableName: tableName,
-		// 	Key: {"userId": userId},
-		// 	UpdateExpression: `SET releases = :fullReleaseData`,
-		// 	ExpressionAttributeValues: {
-		// 		":fullReleaseData": releases
-		// 	}
-		// };
+		// Generate sessionId
+		let sessionId = '';
+		let charset = "abcdefghijklmnopqrstuvwxyz1234567890";
+		for (let i=0; i < 24; i++) sessionId += charset.charAt(Math.floor(Math.random() * charset.length));	
 
-		// try {
-		// 	const registerResult = await database.update(databaseParams).promise();
-		// } catch (error) {
-		// 	console.log('Account creation failed!');
-		// 	console.error(error);
-		// }
+		// Save sessionId in DB
+		const userId = userData.Items[0].userId;
+		const sessionUpdateParams = {
+			TableName: tableName,
+			Key: {"userId": userId},
+			UpdateExpression: 'SET #attr = :sessionId',
+			ExpressionAttributeNames: {'#attr': 'sessionId'},
+			  ExpressionAttributeValues: {":sessionId": sessionId}
+		};
+				
+		try {
+			const result = await database.update(sessionUpdateParams).promise();
+		} catch (e) {
+			console.error(e);
+
+			response.statusCode = 400;
+			response.body = 'Session could not be created!';
+			return response;
+		}
+
+		// Create JWT
+		const accessJWT = jwt.sign({
+			sessionId,
+			userId
+		}, process.env.jwtSecret);
 
 		response.statusCode = 200;
-		response.body = 'Login successful!';
+		response.body = JSON.stringify({message: 'Login successful!', accessJWT});
 		return response;
 	}
 
@@ -239,6 +252,7 @@ export const handler = async (event) => {
 	=========================
 	*/
 
+	// Confirm that params has an auth property
 	let auth;
 	if (postData.hasOwnProperty('auth')) {
 		auth = postData.auth;
@@ -247,7 +261,7 @@ export const handler = async (event) => {
 		return validationError;
 	}
 
-	// Sanitize and validate web token
+	// TODO: Validate and sanitize user input
 	const userId = auth.userId;
 	let isAuthenticated = auth.token === 12345;
 
@@ -431,7 +445,7 @@ export const handler = async (event) => {
 	if (action === 'deleteRelease') {
 		console.log('===starting deleteRelease===');
 
-		// Validate and santize input		
+		// TODO: Validate and santize input		
 		let releaseId = body.releaseId;
 
 		// Call Hellosign to delete request(s)
@@ -462,7 +476,7 @@ export const handler = async (event) => {
 	if (action === 'deleteRequest') {
 		console.log('===starting deleteRequest===');
 
-		// Validate and santize input	
+		// TODO: Validate and santize input	
 		const releaseId = body.releaseId;	
 		const signatureRequestId = body.requestId;
 		
@@ -499,7 +513,7 @@ export const handler = async (event) => {
 	if (action === 'signatureRequest') {
 		console.log('===starting signatureRequest===');
 
-		// Validate and santize input		
+		// TODO: Validate and santize input		
 		let releaseId = body.releaseId;
 		const subject = body.subject;
 		const message = body.message;
@@ -588,7 +602,7 @@ export const handler = async (event) => {
 	if (action === 'sendReminder') {
 		console.log('===starting sendReminder===');
 
-		// Validate and santize input	
+		// TODO: Validate and santize input	
 		const email = {emailAddress: body.emailAddress};	
 		const signatureRequestId = body.requestId;
 		
@@ -625,7 +639,7 @@ export const handler = async (event) => {
 	if (action === 'getSignatureFile') {
 		console.log('===starting getSignatureFile===');
 
-		// Validate and santize input	
+		// TODO: Validate and santize input	
 		const signatureRequestId = body.requestId;
 		
 		// Send signature request
