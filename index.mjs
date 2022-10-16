@@ -1,8 +1,14 @@
+import './env.mjs';
 import * as HelloSignSDK from "hellosign-sdk";
 import AWS from "aws-sdk";
 
+import jwt from 'jsonwebtoken';
+import bcryptjs from 'bcryptjs';
+const { genSalt, hash, compare } = bcryptjs;
+
 export const handler = async (event) => {
-	
+	try {
+
 	/*
 	=========================
 	Shared resources
@@ -11,10 +17,10 @@ export const handler = async (event) => {
 	
 	const response = {
 		headers: {
-            "Access-Control-Allow-Headers" : "Content-Type",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "OPTIONS,POST"
-        }
+			"Access-Control-Allow-Headers" : "Content-Type",
+			"Access-Control-Allow-Origin": "*",
+			"Access-Control-Allow-Methods": "OPTIONS,POST"
+		}
 	};
 	const validationError = {
 		headers: response.headers,
@@ -64,22 +70,21 @@ export const handler = async (event) => {
 
 	}
 
+
+	/*
+	=========================
+	Initial validation and verification
+	=========================
+	*/
+	
 	// Validate request format
-	let postData;
+	let postData, action, body;
+
 	try {
 		postData = JSON.parse(event.body);
 	} catch (err) {
 		console.error(err);
 		validationError.body += ' - request must be in JSON format';
-		return validationError;
-	}
-
-	let auth, action, body;
-	
-	if (postData.hasOwnProperty('auth')) {
-		auth = postData.auth;
-	} else {
-		validationError.body += ' - missing auth attribute';
 		return validationError;
 	}
 
@@ -100,17 +105,189 @@ export const handler = async (event) => {
 	}
 	
 
+	// Verify reCaptcha
+
+
+
+	
+	/*
+	=========================
+	Account Actions
+	=========================
+	*/
+	
+	if (action === 'createAccount') {
+		console.log('===starting createAccount===');
+
+		// TODO: Validate and santize input		
+		const email = body.email;
+		const password = body.password;
+
+		// Return error if email already exists in DB
+		const isAlreadyRegisteredParams = {
+			Key: {"username": email},
+			TableName: tableName,
+			IndexName: 'email-index',
+			KeyConditionExpression: 'email = :email', 
+			ExpressionAttributeValues: { ':email': email },
+		}
+
+		const isAlreadyRegistered = await database.query(isAlreadyRegisteredParams).promise();
+
+		if ( isAlreadyRegistered.Count !== 0 ) {
+			response.statusCode = 422;
+			response.body = 'Account creation failed - a user with that email already exists';
+			return response;
+		}
+		
+		// Generate salt and hash password
+		const salt = await genSalt(10);
+		const hashedPassword = await hash(password, salt);
+
+		// Create new userId
+		let newUserId = '';
+		let charset = "1234567890";
+		for (let i=0; i < 12; i++) newUserId += charset.charAt(Math.floor(Math.random() * charset.length));
+
+		// TODO: Make sure newUserId does not already exist
+
+		// Save new user in DB
+		const databaseParams = {
+			TableName: tableName,
+			Item: {
+				'userId': +newUserId,
+				email,
+				'password': hashedPassword,
+				'sessionId': '',
+				'releases': {}
+			}
+		};
+
+		const registerResult = await database.put(databaseParams).promise();
+
+		response.statusCode = 200;
+		response.body = 'Account created successfully!';
+		return response;
+	}
+
+	if (action === 'login') {
+		console.log('===starting login===');
+
+		// TODO: Validate and santize input		
+		const email = body.email;
+		const password = body.password;
+
+		// Get userData from DB
+		const userDataParams = {
+			Key: {"username": email},
+			TableName: tableName,
+			IndexName: 'email-index',
+			KeyConditionExpression: 'email = :email', 
+			ExpressionAttributeValues: { ':email': email },
+		}
+
+		const userData = await database.query(userDataParams).promise();
+
+		if ( userData.Count === 0 ) {
+			response.statusCode = 400;
+			response.body = 'Login failed - no user with that email address';
+			return response;
+		} else if ( userData.Count > 1 ) {
+			response.statusCode = 400;
+			response.body = 'Login failed - multiple users found with that email address';
+			return response;
+		}
+		
+		// Compare passwords and return error if not a match
+		const savedPassword = userData.Items[0].password;
+		const isAuthorized = await compare(password, savedPassword);
+
+		if (!isAuthorized) {
+			response.statusCode = 400;
+			response.body = 'Login failed - check you password and try again';
+			return response;
+		}
+
+		// Generate sessionId
+		let sessionId = '';
+		let charset = "abcdefghijklmnopqrstuvwxyz1234567890";
+		for (let i=0; i < 24; i++) sessionId += charset.charAt(Math.floor(Math.random() * charset.length));	
+
+		// Save sessionId in DB
+		const userId = userData.Items[0].userId;
+		const sessionUpdateParams = {
+			TableName: tableName,
+			Key: {"userId": userId},
+			UpdateExpression: 'SET #attr = :sessionId',
+			ExpressionAttributeNames: {'#attr': 'sessionId'},
+			  ExpressionAttributeValues: {":sessionId": sessionId}
+		};
+				
+		try {
+			const result = await database.update(sessionUpdateParams).promise();
+		} catch (e) {
+			console.error(e);
+
+			response.statusCode = 400;
+			response.body = 'Session could not be created!';
+			return response;
+		}
+
+		// Create JWT
+		const accessJWT = jwt.sign({
+			sessionId,
+			userId
+		}, process.env.jwtSecret);
+
+		response.statusCode = 200;
+		response.body = JSON.stringify({message: 'Login successful!', accessJWT});
+		return response;
+	}
+
+
 	/*
 	=========================
 	Authentication
 	=========================
 	*/
-	
-	// Verify reCaptcha
-	// Sanitize and validate web token
 
-	const userId = auth.userId;
-	let isAuthenticated = auth.token === 12345;
+	// Confirm that params has an auth property
+	let auth;
+	if (postData.hasOwnProperty('auth')) {
+		auth = postData.auth;
+	} else {
+		validationError.body += ' - missing auth attribute';
+		return validationError;
+	}
+
+	// Decode JWT
+	const accessToken = auth.token;
+	let decodedAccessToken;
+	try {
+		decodedAccessToken = jwt.verify(accessToken, process.env.jwtSecret);
+	} catch (e) {
+		console.error(e);
+		response.statusCode = 400;
+		response.body = 'Access Denied - invalid token. Try logging out and back in to refresh access token.';
+		return response;
+	}
+
+	console.log('decoded Access Token', decodedAccessToken);
+	
+	const userId = decodedAccessToken.userId;
+
+	// Get user's sessionId from DB
+	const sessionIdParams = {
+		Key: {"userId": userId},
+		TableName: tableName,
+		AttributesToGet: ["sessionId"],
+	}
+	
+	const result = await database.get(sessionIdParams).promise();
+	const dbSessionId = result.Item.sessionId;
+
+	// Compare dbSessionId with the one from the accessToken to determine authentication
+	const isAuthenticated = decodedAccessToken.sessionId === dbSessionId;
 
 	if (!isAuthenticated) {
 		response.statusCode = 403;
@@ -292,7 +469,7 @@ export const handler = async (event) => {
 	if (action === 'deleteRelease') {
 		console.log('===starting deleteRelease===');
 
-		// Validate and santize input		
+		// TODO: Validate and santize input		
 		let releaseId = body.releaseId;
 
 		// Call Hellosign to delete request(s)
@@ -323,7 +500,7 @@ export const handler = async (event) => {
 	if (action === 'deleteRequest') {
 		console.log('===starting deleteRequest===');
 
-		// Validate and santize input	
+		// TODO: Validate and santize input	
 		const releaseId = body.releaseId;	
 		const signatureRequestId = body.requestId;
 		
@@ -360,7 +537,7 @@ export const handler = async (event) => {
 	if (action === 'signatureRequest') {
 		console.log('===starting signatureRequest===');
 
-		// Validate and santize input		
+		// TODO: Validate and santize input		
 		let releaseId = body.releaseId;
 		const subject = body.subject;
 		const message = body.message;
@@ -449,7 +626,7 @@ export const handler = async (event) => {
 	if (action === 'sendReminder') {
 		console.log('===starting sendReminder===');
 
-		// Validate and santize input	
+		// TODO: Validate and santize input	
 		const email = {emailAddress: body.emailAddress};	
 		const signatureRequestId = body.requestId;
 		
@@ -486,7 +663,7 @@ export const handler = async (event) => {
 	if (action === 'getSignatureFile') {
 		console.log('===starting getSignatureFile===');
 
-		// Validate and santize input	
+		// TODO: Validate and santize input	
 		const signatureRequestId = body.requestId;
 		
 		// Send signature request
@@ -518,5 +695,9 @@ export const handler = async (event) => {
 		statusCode: 403,
 		body: 'Unable to route request due to invalid action.'
 	};
+
+} catch (e) {
+	console.error(e);
+}
 
 };

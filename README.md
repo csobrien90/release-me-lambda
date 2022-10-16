@@ -4,28 +4,41 @@
 
 ## Actions, parameter, and response models
 
-All requests must be a request in a standard JSON format, containing at least the `action` and `auth` attributes - and sometimes a `params` attribute, depending on the action:
+All requests must be a request in a standard JSON format, containing at least the `action` - and sometimes `auth` and/or `params` attribute, depending on the action:
 
 ```
 const request = {
 	"action": {(string) action},
 	"auth": {
-		"userId": {(int) userId},
 		"token": {(string) JWT},
 	},
 	"params": {(object) params}
 }
 ```
 
+### Create Account (action: createAccount)
+
+- saves new user if email does not already have an account
+- params:
+
+```
+{
+	"email": {(string) email},
+	"password": {(string) password},
+}
+```
+
 ### Get All Releases (action: getAllReleases)
 
 - retrieves a summary of all a user's media releases
+- requires auth token
 - no params required
 
 
 ### Create/Update Release Data (action: saveRelease)
 
 - saves newly created or updates existing release
+- requires auth token
 - params:
 
 ```
@@ -49,6 +62,7 @@ const request = {
 ### Delete Release Data (action: deleteRelease)
 
 - delete all data for a single release
+- requires auth token
 - params:
 
 ```
@@ -59,6 +73,7 @@ const request = {
 ### Create Signature Request (action: signatureRequest)
 
 - invoke HelloSign SDK to create a new signature request
+- requires auth token
 - params:
 
 ```
@@ -83,10 +98,17 @@ const request = {
 
 ## Next steps and areas for improvement
 
-*Since the Release Me Media Release Manager is being created first and foremost for the HelloSign Hackathon and there is an impending hard deadline, this will serve, more than anything, as a proof of concept. Below is a sort of To Do list for future development on this application.*
+### Overall Functionality
+
+- Implement unit testing
+- Improve error handling with try/catch wrapper functions
+- Break index code into smaller, dependent files
+
+### Data
 
 - add time created/modified data to db changes
+
+### Documentation
+
+- Add endpoint info for login
 - Define response data structures in this documentation
-- Flesh out authentication process
-- Implement unit testing
-- Improve error handling with try/catch wrapper function
