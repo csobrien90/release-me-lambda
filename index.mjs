@@ -38,7 +38,6 @@ export const handler = async (event) => {
 		let regex;
 
 		switch (type) {
-			case 'userId':
 			case 'releaseId':
 				//  24 alphabetic digits
 				regex = /^[a-zA-Z]{24}$/;
@@ -261,9 +260,34 @@ export const handler = async (event) => {
 		return validationError;
 	}
 
-	// TODO: Validate and sanitize user input
-	const userId = auth.userId;
-	let isAuthenticated = auth.token === 12345;
+	// Decode JWT
+	const accessToken = auth.token;
+	let decodedAccessToken;
+	try {
+		decodedAccessToken = jwt.verify(accessToken, process.env.jwtSecret);
+	} catch (e) {
+		console.error(e);
+		response.statusCode = 400;
+		response.body = 'Access Denied - invalid token. Try logging out and back in to refresh access token.';
+		return response;
+	}
+
+	console.log('decoded Access Token', decodedAccessToken);
+	
+	const userId = decodedAccessToken.userId;
+
+	// Get user's sessionId from DB
+	const sessionIdParams = {
+		Key: {"userId": userId},
+		TableName: tableName,
+		AttributesToGet: ["sessionId"],
+	}
+	
+	const result = await database.get(sessionIdParams).promise();
+	const dbSessionId = result.Item.sessionId;
+
+	// Compare dbSessionId with the one from the accessToken to determine authentication
+	const isAuthenticated = decodedAccessToken.sessionId === dbSessionId;
 
 	if (!isAuthenticated) {
 		response.statusCode = 403;
